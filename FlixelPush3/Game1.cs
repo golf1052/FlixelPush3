@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -17,7 +18,17 @@ namespace FlixelPush3
         World world;
         GameTimeWrapper mainGameTime;
 
-        Particle[] particles;
+        KeyboardState previousKeyboardState;
+
+        Player player;
+        Enemy[] enemies;
+        float enemySpeed;
+        float originalEnemySpeed;
+        int enemySpawnValue;
+        TimeSpan enemySpawnTime;
+        bool marked;
+        int score;
+        TextItem scoreTextItem;
 
         public Game1()
             : base()
@@ -37,6 +48,13 @@ namespace FlixelPush3
             world = new World(graphics);
             mainGameTime = new GameTimeWrapper(MainUpdate, this, 1.0m);
             world.AddTime(mainGameTime);
+            previousKeyboardState = Keyboard.GetState();
+            enemySpeed = 0.0f;
+            enemySpawnValue = 500;
+            enemySpawnTime = TimeSpan.FromMilliseconds(enemySpawnValue);
+            marked = false;
+            DebugText.Initialize(Vector2.Zero, DebugText.Corner.TopLeft, 0);
+            score = 0;
 
             base.Initialize();
         }
@@ -49,12 +67,15 @@ namespace FlixelPush3
         {
             // Create a new SpriteBatch, which can be used to draw textures.
             spriteBatch = new SpriteBatch(GraphicsDevice);
-
-            particles = new Particle[500];
-            for (int i = 0; i < 500; i++)
+            player = new Player(graphics);
+            enemies = new Enemy[50];
+            for (int i = 0; i < enemies.Length; i++)
             {
-                particles[i] = new Particle(graphics);
+                enemies[i] = new Enemy(graphics);
+                enemies[i].visible = false;
             }
+            scoreTextItem = new TextItem(Content.Load<SpriteFont>("DebugFont"), "Score: " + score.ToString());
+            DebugText.debugTexts.Add(scoreTextItem);
         }
 
         /// <summary>
@@ -78,34 +99,148 @@ namespace FlixelPush3
 
         public void MainUpdate(GameTimeWrapper gameTime)
         {
-            foreach (Particle particle in particles)
+            KeyboardState keyboardState = Keyboard.GetState();
+            float moveSpeed = 0.1f;
+            if (keyboardState.IsKeyDown(Keys.Q) && previousKeyboardState.IsKeyUp(Keys.Q))
             {
-                if (particle.SpawnParticle(new Vector2(graphics.GraphicsDevice.Viewport.Width / 2,
-                    graphics.GraphicsDevice.Viewport.Height / 2),
-                    Color.White,
-                    new Tuple<int, int>(1000, 2000),
-                    new Tuple<int, int>(3, 3),
-                    new Tuple<float, float>(7, 10),
-                    new Tuple<float, float>(0.95f, 0.99f),
-                    new Tuple<float, float>(0.01f, 0.05f),
-                    new Tuple<float, float>(0.01f, 0.01f),
-                    0,
-                    180,
-                    Color.Yellow,
-                    true,
-                    0.8f,
-                    0.5f))
+                if (!player.died)
                 {
-                    break;
+                    player.vel.X = -5.0f * (float)gameTime.GameSpeed;
+                    enemySpawnValue--;
+                    player.speed += moveSpeed;
+                    player.vel.Y -= moveSpeed;
+                    enemySpeed += moveSpeed;
+                }
+            }
+            else if (keyboardState.IsKeyDown(Keys.P) && previousKeyboardState.IsKeyUp(Keys.P))
+            {
+                if (!player.died)
+                {
+                    player.vel.X = 5.0f * (float)gameTime.GameSpeed;
+                    enemySpawnValue--;
+                    player.speed += moveSpeed;
+                    player.vel.Y -= moveSpeed;
+                    enemySpeed += moveSpeed;
+                }
+            }
+            if (!marked)
+            {
+                originalEnemySpeed = enemySpeed;
+            }
+
+            if (enemySpawnValue < 1)
+            {
+                enemySpawnValue = 1;
+            }
+
+            if (!player.died)
+            {
+                enemySpawnTime -= gameTime.ElapsedGameTime;
+            }
+
+            if (enemySpawnTime <= TimeSpan.Zero)
+            {
+                enemySpawnTime = TimeSpan.FromMilliseconds(enemySpawnValue);
+                SpawnEnemy();
+            }
+            player.Update(gameTime, graphics);
+            foreach (Enemy enemy in enemies)
+            {
+                if (enemy.pos.Y > graphics.GraphicsDevice.Viewport.Height)
+                {
+                    enemy.visible = false;
+                }
+
+                if (enemy.visible)
+                {
+                    enemy.speed = enemySpeed;
+                    enemy.Update(gameTime, graphics);
+                    if (enemy.drawRect.Intersects(player.drawRect) && !player.died)
+                    {
+                        player.died = true;
+                        gameTime.GameSpeed = 1;
+                        player.Died(originalEnemySpeed);
+                        player.speed = 0;
+                        player.vel = Vector2.Zero;
+                        enemySpeed = 0;
+                        originalEnemySpeed = 0;
+                    }
+                    if (player.pos.X > enemy.pos.X - 10 &&
+                        player.pos.X < enemy.pos.X + enemy.drawRect.Width + 10)
+                    {
+                        if (enemy.pos.Y > 0 && enemy.pos.Y < 50)
+                        {
+                            gameTime.GameSpeed = 0.9m;
+                            enemy.marked = true;
+                            marked = true;
+                        }
+                        else if (enemy.pos.Y >= 50 && enemy.pos.Y < 100)
+                        {
+                            gameTime.GameSpeed = 0.7m;
+                            enemy.marked = true;
+                            marked = true;
+                        }
+                        else if (enemy.pos.Y >= 100 && enemy.pos.Y < 150)
+                        {
+                            gameTime.GameSpeed = 0.5m;
+                            enemy.marked = true;
+                            marked = true;
+                        }
+                        else if (enemy.pos.Y >= 150 && enemy.pos.Y < 200)
+                        {
+                            gameTime.GameSpeed = 0.3m;
+                            enemy.marked = true;
+                            marked = true;
+                        }
+                        else if (enemy.pos.Y >= 200 && enemy.pos.Y < 240)
+                        {
+                            gameTime.GameSpeed = 0.1m;
+                            enemy.marked = true;
+                            marked = true;
+                        }
+                        enemySpeed = originalEnemySpeed * (float)gameTime.GameSpeed;
+                    }
+                    else if (enemy.marked)
+                    {
+                        gameTime.GameSpeed = 1m;
+                        player.color = Color.White;
+                        enemySpeed = originalEnemySpeed;
+                        enemy.marked = false;
+                        marked = false;
+                    }
                 }
             }
 
-            foreach (Particle particle in particles)
+            if (player.pos.Y < graphics.GraphicsDevice.Viewport.Height / 2)
             {
-                particle.Update(gameTime, graphics);
+                player.pos.Y = graphics.GraphicsDevice.Viewport.Height / 2;
             }
-
+            if (player.pos.X < 0 + player.drawRect.Width / 2)
+            {
+                player.pos.X = 0 + player.drawRect.Width / 2;
+            }
+            if (player.pos.X > graphics.GraphicsDevice.Viewport.Width - player.drawRect.Width * 1.5f)
+            {
+                player.pos.X = graphics.GraphicsDevice.Viewport.Width - player.drawRect.Width * 1.5f;
+            }
+            score += (int)originalEnemySpeed;
+            scoreTextItem.text = "Score: " + score.ToString();
+            previousKeyboardState = keyboardState;
             base.Update(gameTime);
+        }
+
+        void SpawnEnemy()
+        {
+            foreach (Enemy enemy in enemies)
+            {
+                if (!enemy.visible)
+                {
+                    enemy.visible = true;
+                    enemy.pos = new Vector2(World.random.Next(0, graphics.GraphicsDevice.Viewport.Width),
+                        World.random.Next(-1000, -900));
+                    break;
+                }
+            }
         }
 
         /// <summary>
@@ -117,10 +252,15 @@ namespace FlixelPush3
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
             spriteBatch.Begin();
-            foreach (Particle particle in particles)
+            foreach (Enemy enemy in enemies)
             {
-                particle.Draw(spriteBatch);
+                if (enemy.visible)
+                {
+                    enemy.Draw(spriteBatch);
+                }
             }
+            player.Draw(spriteBatch);
+            DebugText.Draw(spriteBatch);
             spriteBatch.End();
 
             base.Draw(gameTime);
