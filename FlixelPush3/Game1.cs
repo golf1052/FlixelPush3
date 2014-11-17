@@ -20,6 +20,8 @@ namespace FlixelPush3
 
         KeyboardState previousKeyboardState;
 
+        Camera camera;
+
         Player player;
         Enemy[] enemies;
         float enemySpeed;
@@ -49,6 +51,8 @@ namespace FlixelPush3
             mainGameTime = new GameTimeWrapper(MainUpdate, this, 1.0m);
             world.AddTime(mainGameTime);
             previousKeyboardState = Keyboard.GetState();
+            camera = new Camera(graphics.GraphicsDevice.Viewport, Camera.Focus.TopLeft);
+            //camera.smoothZoom = true;
             enemySpeed = 0.0f;
             enemySpawnValue = 500;
             enemySpawnTime = TimeSpan.FromMilliseconds(enemySpawnValue);
@@ -94,6 +98,7 @@ namespace FlixelPush3
         /// <param name="gameTime">Provides a snapshot of timing values.</param>
         protected override void Update(GameTime gameTime)
         {
+            camera.Update();
             world.Update(gameTime);
         }
 
@@ -164,45 +169,71 @@ namespace FlixelPush3
                         player.vel = Vector2.Zero;
                         enemySpeed = 0;
                         originalEnemySpeed = 0;
+                        camera.zoom = 1;
+                        camera.focalPoint = Vector2.Zero;
+                        camera.focus = Camera.Focus.TopLeft;
                     }
                     if (player.pos.X > enemy.pos.X - 10 &&
-                        player.pos.X < enemy.pos.X + enemy.drawRect.Width + 10)
+                        player.pos.X < enemy.pos.X + enemy.drawRect.Width + 10 && !player.died)
                     {
                         if (enemy.pos.Y > 0 && enemy.pos.Y < 50)
                         {
                             gameTime.GameSpeed = 0.9m;
                             enemy.marked = true;
                             marked = true;
+                            camera.focus = Camera.Focus.Center;
+                            camera.focalPoint = new Vector2(enemy.pos.X + enemy.drawRect.Width / 2,
+                                player.pos.Y);
+                            camera.zoom += 0.01f;
                         }
                         else if (enemy.pos.Y >= 50 && enemy.pos.Y < 100)
                         {
                             gameTime.GameSpeed = 0.7m;
                             enemy.marked = true;
                             marked = true;
+                            camera.focus = Camera.Focus.Center;
+                            camera.focalPoint = new Vector2(enemy.pos.X + enemy.drawRect.Width / 2,
+                                player.pos.Y);
+                            camera.zoom += 0.01f;
                         }
                         else if (enemy.pos.Y >= 100 && enemy.pos.Y < 150)
                         {
                             gameTime.GameSpeed = 0.5m;
                             enemy.marked = true;
                             marked = true;
+                            camera.focus = Camera.Focus.Center;
+                            camera.focalPoint = new Vector2(enemy.pos.X + enemy.drawRect.Width / 2,
+                                player.pos.Y);
+                            camera.zoom += 0.01f;
                         }
                         else if (enemy.pos.Y >= 150 && enemy.pos.Y < 200)
                         {
                             gameTime.GameSpeed = 0.3m;
                             enemy.marked = true;
                             marked = true;
+                            camera.focus = Camera.Focus.Center;
+                            camera.focalPoint = new Vector2(enemy.pos.X + enemy.drawRect.Width / 2,
+                                player.pos.Y);
+                            camera.zoom += 0.01f;
                         }
                         else if (enemy.pos.Y >= 200 && enemy.pos.Y < 240)
                         {
                             gameTime.GameSpeed = 0.1m;
                             enemy.marked = true;
                             marked = true;
+                            camera.focus = Camera.Focus.Center;
+                            camera.focalPoint = new Vector2(enemy.pos.X + enemy.drawRect.Width / 2,
+                                player.pos.Y);
+                            camera.zoom += 0.01f;
                         }
                         enemySpeed = originalEnemySpeed * (float)gameTime.GameSpeed;
                     }
                     else if (enemy.marked)
                     {
                         gameTime.GameSpeed = 1m;
+                        camera.zoom = 1;
+                        camera.focalPoint = Vector2.Zero;
+                        camera.focus = Camera.Focus.TopLeft;
                         player.color = Color.White;
                         enemySpeed = originalEnemySpeed;
                         enemy.marked = false;
@@ -251,7 +282,7 @@ namespace FlixelPush3
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            spriteBatch.Begin();
+            camera.CameraBeginSpriteBatch(spriteBatch);
             foreach (Enemy enemy in enemies)
             {
                 if (enemy.visible)
